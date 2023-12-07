@@ -1,0 +1,76 @@
+version: "3.8"
+
+services:
+  database:
+    container_name: mariadb-database
+    platform: linux/x86_64
+    image: mariadb:10.6.4-focal
+    restart: unless-stopped
+    ports:
+      - 3307:3306
+    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: '${MYSQL_ROOT_PASSWORD}'
+      MYSQL_DATABASE: '${MYSQL_DATABASE}'
+      MYSQL_USER: '${MYSQL_USER}'
+      MYSQL_PASSWORD: '${MYSQL_PASSWORD}'
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./mysql/my.cnf:/etc/mysql/my.cnf
+    networks:
+      - my-bridge-network
+    deploy:
+      resources:
+        limits:
+          memory: 4096m
+
+  phpmyadmin:
+    container_name: database-phpmyadmin
+    depends_on:
+      - database
+    image: phpmyadmin/phpmyadmin
+    restart: unless-stopped
+    ports:
+      - 8081:80
+    env_file: .env
+    environment:
+      PMA_HOST: database
+      MYSQL_ROOT_PASSWORD: '${MYSQL_ROOT_PASSWORD}'
+    networks:
+      - my-bridge-network
+
+  app-server:
+    container_name: app-server
+    depends_on:
+      - database
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./src:/var/www/html
+      - ./php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+      - my-bridge-network
+
+  webserver:
+    container_name: nginx-webserver
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      - database
+    tty: true
+    ports:
+      - "8082:80"
+      - "443:443"
+    volumes:
+      - ./src/:/var/www/html
+      - ./nginx/conf.d/:/etc/nginx/conf.d/
+    networks:
+      - my-bridge-network
+
+volumes:
+  db-data:
+    driver: local
+
+networks:
+  my-bridge-network:
+    driver: bridge  
